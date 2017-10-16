@@ -1,3 +1,4 @@
+
 if (typeof Scribe === 'undefined') {
   /**
    * Constructs a new Scribe Analytics tracker.
@@ -8,6 +9,15 @@ if (typeof Scribe === 'undefined') {
    *                          Must be: function(collection, event).
    *
    */
+
+  function myTracker(config) {
+    return;
+  }
+
+  myTracker.prototype.tracker = function(trackOptions) {
+      console.log("Tracker log", trackOptions);
+  };
+
   var Scribe = function(options) {
     if (!(this instanceof Scribe)) return new Scribe(config);
 
@@ -15,7 +25,6 @@ if (typeof Scribe === 'undefined') {
 
     this.options    = options;
     this.trackerInstance    = options.tracker;
-
     this.initialize();
   };
 
@@ -615,6 +624,24 @@ if (typeof Scribe === 'undefined') {
       return result;
     };
 
+    DomUtil.getClickCoord = function(e) {
+      var coordX = e.x;
+      var coordY = e.y;
+
+      return {coordX, coordY};
+  };
+
+  DomUtil.getScrollCoord = function() {
+    const containerSelector = '#application .section';
+    var scrollTop = document.documentElement.scrollTop;
+    var scrollNodeTop = document.querySelector(containerSelector).scrollTop;
+    var scrollLeft = document.documentElement.scrollLeft;
+    var scrollNodeLeft = document.querySelector(containerSelector).scrollLeft;
+    var scrollY = scrollNodeTop > 0 ? scrollNodeTop : scrollTop;
+    var scrollX = scrollNodeLeft > 0 ? scrollNodeLeft : scrollLeft;
+    return {scrollX, scrollY};
+  }
+
     DomUtil.simulateMouseEvent = function(element, eventName, options) {
       var eventMatchers = {
         'HTMLEvents': /^(?:load|unload|abort|error|select|change|submit|reset|focus|blur|resize|scroll)$/,
@@ -841,6 +868,11 @@ if (typeof Scribe === 'undefined') {
       }
     };
 
+    const getTimestampLocale = function() {
+       var timestamp = (new Date());
+       return timestamp.getTime() - timestamp.getTimezoneOffset()*60000;
+    }
+
     var Events = {};
 
     Events.onready = function(f) {
@@ -1023,7 +1055,6 @@ if (typeof Scribe === 'undefined') {
         Events.onevent(document.body, 'click', false, function(e) {
           var target = e.target;
           var targetType = (target.type || '').toLowerCase();
-
           if (target.form && (targetType === 'submit' || targetType === 'button')) {
             e.form = target.form;
             handle(e);
@@ -1055,7 +1086,8 @@ if (typeof Scribe === 'undefined') {
         trackEngagement:  false,
         trackLinkClicks:  false,
         trackRedirects:   false,
-        trackSubmissions: false
+        trackSubmissions: false,
+        trackScrolls: false,
       }, this.options);
 
       // Always assume that Javascript is the culprit of leaving the page
@@ -1136,10 +1168,24 @@ if (typeof Scribe === 'undefined') {
 
             // Do not track clicks on links, these are tracked separately!
             if (!ArrayUtil.exists(ancestors, function(e) { return e.tagName === 'A';})) {
+              // console.log('current click e', e);
               self.track('click', {
-                target: DomUtil.getNodeDescriptor(e.target)
+                target: DomUtil.getNodeDescriptor(e.target),
+                coord: DomUtil.getClickCoord(e)
               });
             }
+          });
+        });
+      }
+
+      //track scroll events
+      if(this.options.trackScrolls) {
+        Events.onready(function() {
+          Events.onevent(document.body, 'scroll', true, function(e){
+              self.track('scroll', {
+                  target: DomUtil.getNodeDescriptor(e.target),
+                  scroll: DomUtil.getScrollCoord()
+              });
           });
         });
       }
@@ -1356,7 +1402,7 @@ if (typeof Scribe === 'undefined') {
     Scribe.prototype._createEvent = function(name, props) {
       props = props || {};
 
-      props.timestamp = props.timestamp || (new Date()).toISOString();
+      props.timestamp = props.timestamp || (new Date (getTimestampLocale())).toISOString();
       props.event     = name;
       props.source    = Util.merge({url: Util.parseUrl(document.location)}, props.source || {});
 
@@ -1442,4 +1488,5 @@ if (typeof Scribe === 'undefined') {
 
     return Scribe;
   })(Scribe);
+
 }
